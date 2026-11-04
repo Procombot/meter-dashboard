@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meter Dashboard</title>
+<style>
+  body { font-family: sans-serif; background:#111; color:#eee; margin:0; padding:12px; }
+  button { font-size:18px; padding:12px 20px; border:0; border-radius:8px; background:#2a7; color:#fff; }
+  #status { margin:10px 0; color:#aaa; }
+  .tile { background:#1d1d1d; border-radius:10px; padding:10px; margin-bottom:12px; }
+  .name { color:#aaa; font-size:14px; }
+  .val { font-size:32px; font-weight:bold; }
+  canvas { width:100%; height:90px; }
+</style>
+</head>
+<body>
+<button id="btn">Connect</button>
+<div id="status">Not connected</div>
+<div id="tiles"></div>
+
+<script>
+const UART = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const TX   = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const MAX_POINTS = 120;
+const series = {};
+let buffer = '';
+
+document.getElementById('btn').onclick = async () => {
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [UART] }]
+    });
+    device.addEventListener('gattserverdisconnected', () => setStatus('Disconnected'));
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(UART);
+    const tx = await service.getCharacteristic(TX);
+    await tx.startNotifications();
+    tx.addEventListener('characteristicvaluechanged', e => {
+      buffer += new TextDecoder().decode(e.target.value);
+      let lines = buffer.split(/\r?\n/);
+      buffer = lines.pop();
+      lines.forEach(parseLine);
+    });
+    setStatus('Connected to ' + (device.name || 'device'));
+  } catch (err) { setStatus('Error: ' + err.message); }
+};
+
+function setStatus(t) { document.getElementById('status').textContent = t; }
+
+function parseLine(line) {
+  const m = line.match(/^\s*([^:=]+?)\s*[:=]\s*(-?\d+(\.\d+)?)/);
+  if (!m) return;
+  const name = m[1], value = parseFloat(m[2]);
+  if (!series[name]) makeTile(name);
+  const s = series[name];
+  s.data.push(value);
+  if (s.data.length > MAX_POINTS) s.data.shift();
+  s.valEl.textContent = value;
+  draw(s);
+}
+
+function makeTile(name) {
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.innerHTML = `<div class="name">${name}</div><div class="val">-</div><canvas></canvas>`;
+  document.getElementById('tiles').appendChild(tile);
+  series[name] = { data: [], valEl: tile.querySelector('.val'), canvas: tile.querySelector('canvas') };
+}
+
+function draw(s) {
+  const c = s.canvas, ctx = c.getContext('2d');
+  c.width = c.clientWidth; c.height = c.clientHeight;
+  const d = s.data, min = Math.min(...d), max = Math.max(...d), range = (max - min) || 1;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = '#2a7'; ctx.lineWidth = 2; ctx.beginPath();
+  d.forEach((v, i) => {
+    const x = i * c.width / (MAX_POINTS - 1);
+    const y = c.height - 5 - (v - min) / range * (c.height - 10);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+  ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
+  ctx.fillText(max.toFixed(2), 2, 12);
+  ctx.fillText(min.toFixed(2), 2, c.height - 2);
+}
+</script>
+</body>
+</html>
