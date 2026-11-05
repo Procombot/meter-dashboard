@@ -1,90 +1,419 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meter Dashboard</title>
+<title>RI-D440 Meter Dashboard</title>
 <style>
-  body { font-family: sans-serif; background:#111; color:#eee; margin:0; padding:12px; }
-  button { font-size:18px; padding:12px 20px; border:0; border-radius:8px; background:#2a7; color:#fff; }
-  #status { margin:10px 0; color:#aaa; }
-  .tile { background:#1d1d1d; border-radius:10px; padding:10px; margin-bottom:12px; }
-  .name { color:#aaa; font-size:14px; }
-  .val { font-size:32px; font-weight:bold; }
-  canvas { width:100%; height:90px; }
+:root{
+  --bg:#0d1117;--panel:#161b22;--panel2:#1c232c;--line:#2a323d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#2fbf71;--warn:#e3b341;--bad:#f85149;
+  --l1:#ef5350;--l2:#f2b134;--l3:#42a5f5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 "Segoe UI",Roboto,system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 16px;background:rgba(13,17,23,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.brand{font-weight:600;font-size:17px}
+.brand small{display:block;color:var(--muted);font-weight:400;font-size:12px;margin-top:2px}
+.spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:var(--panel2);color:var(--muted);font-size:12px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#555}
+.dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.dot.wait{background:var(--warn)}
+.dot.bad{background:var(--bad)}
+button{font:inherit;font-weight:600;padding:8px 16px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--text);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#06210f}
+button:hover{filter:brightness(1.1)}
+main{padding:16px;max-width:1280px;margin:0 auto;display:grid;gap:16px}
+.grid{display:grid;gap:16px}
+.hero{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.card h2{margin:0 0 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.big{font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.unit{font-size:14px;color:var(--muted);margin-left:4px;font-weight:400}
+.range{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:4px;font-variant-numeric:tabular-nums}
+canvas.spark{width:100%;height:46px;display:block;margin-top:8px}
+.phases{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ph{background:var(--panel2);border-radius:8px;padding:10px;border-top:3px solid var(--line);min-width:0}
+.ph.p1{border-top-color:var(--l1)}.ph.p2{border-top-color:var(--l2)}.ph.p3{border-top-color:var(--l3)}
+.ph .lbl{font-size:12px;color:var(--muted)}
+.ph .v{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.ph .u{font-size:12px;color:var(--muted);margin-left:3px}
+.bar{height:4px;background:#0008;border-radius:2px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;transition:width .4s}
+.p1 .bar i{background:var(--l1)}.p2 .bar i{background:var(--l2)}.p3 .bar i{background:var(--l3)}
+.foot{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;margin-top:12px;color:var(--muted);font-size:12px}
+.foot b{color:var(--text);font-variant-numeric:tabular-nums;font-size:14px}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:12px}
+th:first-child,td:first-child{text-align:left;color:var(--muted)}
+th.c1{color:var(--l1)}th.c2{color:var(--l2)}th.c3{color:var(--l3)}
+td.tot{font-weight:700}
+.kv{display:grid;grid-template-columns:1fr auto;row-gap:10px;column-gap:12px}
+.kv span{color:var(--muted)}
+.kv b{font-variant-numeric:tabular-nums;text-align:right;font-size:16px}
+.kv em{font-style:normal;color:var(--muted);font-size:12px;margin-left:4px;font-weight:400}
+.stale{opacity:.35}
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 16px}
+summary{cursor:pointer;color:var(--muted)}
+pre{max-height:260px;overflow:auto;font-size:12px;color:#9fb3c8;margin:10px 0 0;white-space:pre-wrap}
+.hidden{display:none}
+@media (max-width:520px){ .big{font-size:28px} .ph .v{font-size:18px} }
 </style>
 </head>
 <body>
-<button id="btn">Connect</button>
-<div id="status">Not connected</div>
-<div id="tiles"></div>
+
+<header>
+  <div class="brand">RI-D440 Energy Meter
+    <small>Slave <span id="slave">—</span> · S/N <span id="serial">—</span> · Uptime <span id="uptime">—</span></small>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill"><span class="dot" id="dot"></span><span id="status">Not connected</span></span>
+  <span class="pill">Updated <span id="updated">—</span></span>
+  <button id="demoBtn">Demo</button>
+  <button id="btn" class="primary">Connect</button>
+</header>
+
+<main>
+  <!-- Key figures -->
+  <section class="grid hero">
+    <div class="card"><h2>Avg Voltage L-N</h2>
+      <div class="big"><span data-k="V L-N avg" data-d="1"></span><span class="unit">V</span></div>
+      <canvas class="spark" data-spark="V L-N avg"></canvas></div>
+    <div class="card"><h2>Total Active Power</h2>
+      <div class="big"><span data-k="Total kW" data-d="3"></span><span class="unit">kW</span></div>
+      <canvas class="spark" data-spark="Total kW"></canvas></div>
+    <div class="card"><h2>Frequency</h2>
+      <div class="big"><span data-k="Frequency" data-d="2"></span><span class="unit">Hz</span></div>
+      <canvas class="spark" data-spark="Frequency"></canvas></div>
+    <div class="card"><h2>Power Factor</h2>
+      <div class="big"><span data-k="PF avg" data-d="3"></span></div>
+      <canvas class="spark" data-spark="PF avg"></canvas></div>
+  </section>
+
+  <!-- Per-phase -->
+  <section class="grid two">
+    <div class="card"><h2>Voltage L-N</h2>
+      <div class="phases">
+        <div class="ph p1"><div class="lbl">L1 · V1-N</div><span class="v" data-k="V1-N" data-d="1"></span><span class="u">V</span><div class="bar"><i data-bar="V1-N" data-min="200" data-max="260"></i></div></div>
+        <div class="ph p2"><div class="lbl">L2 · V2-N</div><span class="v" data-k="V2-N" data-d="1"></span><span class="u">V</span><div class="bar"><i data-bar="V2-N" data-min="200" data-max="260"></i></div></div>
+        <div class="ph p3"><div class="lbl">L3 · V3-N</div><span class="v" data-k="V3-N" data-d="1"></span><span class="u">V</span><div class="bar"><i data-bar="V3-N" data-min="200" data-max="260"></i></div></div>
+      </div>
+      <div class="foot"><span>Average <b data-k="V L-N avg" data-d="2"></b> V</span><span>Imbalance <b id="vImb">—</b></span></div>
+    </div>
+
+    <div class="card"><h2>Voltage L-L</h2>
+      <div class="phases">
+        <div class="ph p1"><div class="lbl">V1-2</div><span class="v" data-k="V1-2" data-d="1"></span><span class="u">V</span><div class="bar"><i data-bar="V1-2" data-min="350" data-max="450"></i></div></div>
+        <div class="ph p2"><div class="lbl">V2-3</div><span class="v" data-k="V2-3" data-d="1"></span><span class="u">V</span><div class="bar"><i data-bar="V2-3" data-min="350" data-max="450"></i></div></div>
+        <div class="ph p3"><div class="lbl">V3-1</div><span class="v" data-k="V3-1" data-d="1"></span><span class="u">V</span><div class="bar"><i data-bar="V3-1" data-min="350" data-max="450"></i></div></div>
+      </div>
+      <div class="foot"><span>Average <b data-k="V L-L avg" data-d="2"></b> V</span><span>Imbalance <b id="llImb">—</b></span></div>
+    </div>
+
+    <div class="card"><h2>Current</h2>
+      <div class="phases">
+        <div class="ph p1"><div class="lbl">L1 · I1</div><span class="v" data-k="I1" data-d="2"></span><span class="u">A</span><div class="bar"><i data-bar="I1" data-group="I1,I2,I3"></i></div></div>
+        <div class="ph p2"><div class="lbl">L2 · I2</div><span class="v" data-k="I2" data-d="2"></span><span class="u">A</span><div class="bar"><i data-bar="I2" data-group="I1,I2,I3"></i></div></div>
+        <div class="ph p3"><div class="lbl">L3 · I3</div><span class="v" data-k="I3" data-d="2"></span><span class="u">A</span><div class="bar"><i data-bar="I3" data-group="I1,I2,I3"></i></div></div>
+      </div>
+      <div class="foot"><span>Total <b id="iSum">—</b> A</span><span>Imbalance <b id="iImb">—</b></span></div>
+    </div>
+
+    <div class="card"><h2>Power Factor</h2>
+      <div class="phases">
+        <div class="ph p1"><div class="lbl">L1 · PF1</div><span class="v" data-k="PF1" data-d="3"></span><div class="bar"><i data-bar="PF1" data-min="0" data-max="1"></i></div></div>
+        <div class="ph p2"><div class="lbl">L2 · PF2</div><span class="v" data-k="PF2" data-d="3"></span><div class="bar"><i data-bar="PF2" data-min="0" data-max="1"></i></div></div>
+        <div class="ph p3"><div class="lbl">L3 · PF3</div><span class="v" data-k="PF3" data-d="3"></span><div class="bar"><i data-bar="PF3" data-min="0" data-max="1"></i></div></div>
+      </div>
+      <div class="foot"><span>Average <b data-k="PF avg" data-d="3"></b></span></div>
+    </div>
+  </section>
+
+  <!-- Power table -->
+  <section class="card"><h2>Power</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th class="c1">L1</th><th class="c2">L2</th><th class="c3">L3</th><th>Total</th></tr></thead>
+      <tbody>
+        <tr><td>Active (kW)</td><td data-k="kW1" data-d="3"></td><td data-k="kW2" data-d="3"></td><td data-k="kW3" data-d="3"></td><td class="tot" data-k="Total kW" data-d="3"></td></tr>
+        <tr><td>Apparent (kVA)</td><td data-k="kVA1" data-d="3"></td><td data-k="kVA2" data-d="3"></td><td data-k="kVA3" data-d="3"></td><td class="tot" data-k="Total kVA" data-d="3"></td></tr>
+        <tr><td>Reactive (kVAr)</td><td data-k="kVAr1" data-d="3"></td><td data-k="kVAr2" data-d="3"></td><td data-k="kVAr3" data-d="3"></td><td class="tot" data-k="Total kVAr" data-d="3"></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- Energy & demand -->
+  <section class="grid two">
+    <div class="card"><h2>Energy</h2>
+      <div class="kv">
+        <span>Total net active energy</span><b><span data-k="Total net kWh" data-d="3"></span><em>kWh</em></b>
+        <span>Total net reactive energy</span><b><span data-k="Total net kVArh" data-d="3"></span><em>kVArh</em></b>
+      </div>
+    </div>
+    <div class="card"><h2>Demand</h2>
+      <div class="kv">
+        <span>kW demand</span><b><span data-k="kW demand" data-d="3"></span><em>kW</em></b>
+        <span>kVA demand</span><b><span data-k="kVA demand" data-d="3"></span><em>kVA</em></b>
+        <span>Max kW demand</span><b><span data-k="Max kW demand" data-d="3"></span><em>kW</em></b>
+        <span>Max kVA demand</span><b><span data-k="Max kVA demand" data-d="3"></span><em>kVA</em></b>
+      </div>
+    </div>
+  </section>
+
+  <!-- Anything the firmware sends that isn't laid out above -->
+  <section class="card hidden" id="otherCard"><h2>Other readings</h2><div class="kv" id="other"></div></section>
+
+  <details><summary>Raw serial data</summary><pre id="raw"></pre></details>
+</main>
 
 <script>
 const UART = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const TX   = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-const MAX_POINTS = 120;
-const series = {};
-let buffer = '';
+const MAX_HIST = 120;
 
-document.getElementById('btn').onclick = async () => {
-  try {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [UART] }]
-    });
-    device.addEventListener('gattserverdisconnected', () => setStatus('Disconnected'));
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(UART);
-    const tx = await service.getCharacteristic(TX);
-    await tx.startNotifications();
-    tx.addEventListener('characteristicvaluechanged', e => {
-      buffer += new TextDecoder().decode(e.target.value);
-      let lines = buffer.split(/\r?\n/);
-      buffer = lines.pop();
-      lines.forEach(parseLine);
-    });
-    setStatus('Connected to ' + (device.name || 'device'));
-  } catch (err) { setStatus('Error: ' + err.message); }
-};
+const vals = {};          // name -> {v, unit, frame}
+const hist = {};          // name -> [numbers] for sparklines
+let frame = 0, buffer = '', device = null, manualDisconnect = false, demoTimer = null, renderQueued = false;
+const decoder = new TextDecoder();
+const $ = id => document.getElementById(id);
 
-function setStatus(t) { document.getElementById('status').textContent = t; }
+// Keys already placed on the dashboard
+const KNOWN = new Set([...document.querySelectorAll('[data-k]')].map(e => e.dataset.k));
+document.querySelectorAll('[data-spark]').forEach(c => hist[c.dataset.spark] = []);
+
+/* ---------- Parsing ---------- */
+// Header:  === RI-D440 (slave 1, S/N C2E20256) uptime 103s ===
+const HDR = /RI-D440\s*\(slave\s*(\d+),\s*S\/N\s*([^)]+?)\)\s*uptime\s*(\d+)\s*s/i;
+// Row:     "  V L-N avg               238.400 V"  -> name / value / unit (name and value separated by 2+ spaces)
+const ROW = /^\s*([A-Za-z][\w .\-\/]*?)\s{2,}(-?\d+(?:\.\d+)?)\s*([A-Za-z%]*)\s*$/;
+
+function ingest(text) {
+  buffer += text;
+  const lines = buffer.split(/\r?\n/);
+  buffer = lines.pop();
+  lines.forEach(parseLine);
+}
 
 function parseLine(line) {
-  const m = line.match(/^\s*([^:=]+?)\s*[:=]\s*(-?\d+(\.\d+)?)/);
-  if (!m) return;
-  const name = m[1], value = parseFloat(m[2]);
-  if (!series[name]) makeTile(name);
-  const s = series[name];
-  s.data.push(value);
-  if (s.data.length > MAX_POINTS) s.data.shift();
-  s.valEl.textContent = value;
-  draw(s);
+  logRaw(line);
+  const h = line.match(HDR);
+  if (h) {
+    pushHistory();
+    frame++;
+    $('slave').textContent = h[1];
+    $('serial').textContent = h[2].trim();
+    $('uptime').textContent = fmtUptime(+h[3]);
+    return;
+  }
+  const m = line.match(ROW);
+  if (!m) return;                        // fragments / garbled lines are ignored
+  vals[m[1].trim()] = { v: parseFloat(m[2]), unit: m[3], frame };
+  $('updated').textContent = new Date().toLocaleTimeString();
+  queueRender();
 }
 
-function makeTile(name) {
-  const tile = document.createElement('div');
-  tile.className = 'tile';
-  tile.innerHTML = `<div class="name">${name}</div><div class="val">-</div><canvas></canvas>`;
-  document.getElementById('tiles').appendChild(tile);
-  series[name] = { data: [], valEl: tile.querySelector('.val'), canvas: tile.querySelector('canvas') };
+function pushHistory() {
+  for (const k in hist) {
+    const o = vals[k];
+    if (o && o.frame === frame) {
+      hist[k].push(o.v);
+      if (hist[k].length > MAX_HIST) hist[k].shift();
+    }
+  }
 }
 
-function draw(s) {
-  const c = s.canvas, ctx = c.getContext('2d');
-  c.width = c.clientWidth; c.height = c.clientHeight;
-  const d = s.data, min = Math.min(...d), max = Math.max(...d), range = (max - min) || 1;
-  ctx.clearRect(0, 0, c.width, c.height);
-  ctx.strokeStyle = '#2a7'; ctx.lineWidth = 2; ctx.beginPath();
-  d.forEach((v, i) => {
-    const x = i * c.width / (MAX_POINTS - 1);
-    const y = c.height - 5 - (v - min) / range * (c.height - 10);
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + (d || h || m ? m + 'm ' : '') + sec + 's';
+}
+
+/* ---------- Rendering ---------- */
+function queueRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; render(); });
+}
+
+function isStale(o) { return !o || frame - o.frame > 1; }
+
+function render() {
+  document.querySelectorAll('[data-k]').forEach(el => {
+    const o = vals[el.dataset.k];
+    el.textContent = o ? o.v.toFixed(+(el.dataset.d ?? 2)) : '—';
+    el.classList.toggle('stale', isStale(o));
   });
-  ctx.stroke();
-  ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
-  ctx.fillText(max.toFixed(2), 2, 12);
-  ctx.fillText(min.toFixed(2), 2, c.height - 2);
+
+  document.querySelectorAll('[data-bar]').forEach(b => {
+    const o = vals[b.dataset.bar];
+    if (!o) { b.style.width = '0'; return; }
+    let min = +(b.dataset.min || 0), max = +(b.dataset.max || 1);
+    if (b.dataset.group) max = Math.max(...b.dataset.group.split(',').map(k => vals[k]?.v || 0)) || 1;
+    b.style.width = Math.max(0, Math.min(100, (o.v - min) / (max - min) * 100)) + '%';
+  });
+
+  $('vImb').textContent  = imbalance(['V1-N', 'V2-N', 'V3-N']);
+  $('llImb').textContent = imbalance(['V1-2', 'V2-3', 'V3-1']);
+  $('iImb').textContent  = imbalance(['I1', 'I2', 'I3']);
+  const I = ['I1', 'I2', 'I3'].map(k => vals[k]?.v);
+  $('iSum').textContent = I.every(x => x != null) ? I.reduce((a, b) => a + b, 0).toFixed(2) : '—';
+
+  renderOther();
+  document.querySelectorAll('[data-spark]').forEach(drawSpark);
 }
+
+function imbalance(keys) {
+  const v = keys.map(k => vals[k]?.v);
+  if (v.some(x => x == null)) return '—';
+  const avg = (v[0] + v[1] + v[2]) / 3;
+  if (avg <= 0) return '—';
+  return (Math.max(...v.map(x => Math.abs(x - avg))) / avg * 100).toFixed(2) + ' %';
+}
+
+function renderOther() {
+  const extra = Object.keys(vals).filter(k => !KNOWN.has(k));
+  $('otherCard').classList.toggle('hidden', !extra.length);
+  $('other').innerHTML = extra.map(k => {
+    const o = vals[k];
+    return `<span>${k}</span><b class="${isStale(o) ? 'stale' : ''}">${o.v}<em>${o.unit}</em></b>`;
+  }).join('');
+}
+
+function drawSpark(c) {
+  const d = hist[c.dataset.spark] || [];
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  c.width = w * dpr; c.height = h * dpr;
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  if (d.length < 2) {
+    ctx.fillStyle = '#8b949e'; ctx.font = '11px sans-serif';
+    ctx.fillText('collecting trend…', 0, h / 2 + 4);
+    return;
+  }
+  const min = Math.min(...d), max = Math.max(...d), range = (max - min) || 1;
+  const pts = d.map((v, i) => [i * w / (MAX_HIST - 1), h - 4 - (v - min) / range * (h - 8)]);
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, 'rgba(47,191,113,.35)'); grad.addColorStop(1, 'rgba(47,191,113,0)');
+  ctx.beginPath(); ctx.moveTo(pts[0][0], h);
+  pts.forEach(p => ctx.lineTo(p[0], p[1]));
+  ctx.lineTo(pts[pts.length - 1][0], h); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+  ctx.strokeStyle = '#2fbf71'; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.fillStyle = '#8b949e'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText(max.toFixed(2), w - 2, 10);
+  ctx.fillText(min.toFixed(2), w - 2, h - 2);
+}
+
+/* ---------- Raw log ---------- */
+const rawLines = [];
+function logRaw(line) {
+  rawLines.push(line);
+  if (rawLines.length > 200) rawLines.shift();
+  if ($('raw').parentElement.open) $('raw').textContent = rawLines.join('\n');
+}
+$('raw').parentElement.addEventListener('toggle', () => $('raw').textContent = rawLines.join('\n'));
+
+/* ---------- Bluetooth ---------- */
+function setStatus(text, state) {
+  $('status').textContent = text;
+  $('dot').className = 'dot ' + (state || '');
+}
+
+$('btn').onclick = () => (device && device.gatt.connected) ? disconnect() : connect();
+
+async function connect() {
+  stopDemo();
+  if (!navigator.bluetooth) {
+    setStatus('Web Bluetooth not supported — use Chrome or Edge', 'bad');
+    return;
+  }
+  try {
+    setStatus('Select device…', 'wait');
+    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [UART] }] });
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    manualDisconnect = false;
+    await openGatt();
+  } catch (err) {
+    setStatus('Error: ' + err.message, 'bad');
+  }
+}
+
+async function openGatt() {
+  setStatus('Connecting…', 'wait');
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService(UART);
+  const tx = await service.getCharacteristic(TX);
+  tx.addEventListener('characteristicvaluechanged', e =>
+    ingest(decoder.decode(e.target.value, { stream: true })));
+  await tx.startNotifications();
+  buffer = '';
+  setStatus('Connected · ' + (device.name || 'device'), 'on');
+  $('btn').textContent = 'Disconnect';
+}
+
+function disconnect() {
+  manualDisconnect = true;
+  device.gatt.disconnect();
+}
+
+async function onDisconnected() {
+  $('btn').textContent = 'Connect';
+  if (manualDisconnect) { setStatus('Disconnected'); return; }
+  for (let i = 1; i <= 5; i++) {               // auto-reconnect
+    setStatus(`Connection lost — retry ${i}/5`, 'wait');
+    await new Promise(r => setTimeout(r, 2000));
+    try { await openGatt(); return; } catch (e) {}
+  }
+  setStatus('Disconnected', 'bad');
+}
+
+/* ---------- Demo mode (test the page without the meter) ---------- */
+const DEMO = [
+  ['V1-N', 237.88, 'V'], ['V2-N', 237.74, 'V'], ['V3-N', 239.58, 'V'], ['V L-N avg', 238.4, 'V'],
+  ['V1-2', 411.31, 'V'], ['V2-3', 413.53, 'V'], ['V3-1', 413.88, 'V'], ['V L-L avg', 412.9, 'V'],
+  ['I1', 4.2, 'A'], ['I2', 3.8, 'A'], ['I3', 5.1, 'A'],
+  ['kW1', 0.92, 'kW'], ['kW2', 0.83, 'kW'], ['kW3', 1.1, 'kW'],
+  ['kVA1', 1.0, 'kVA'], ['kVA2', 0.9, 'kVA'], ['kVA3', 1.22, 'kVA'],
+  ['kVAr1', 0.39, 'kVAr'], ['kVAr2', 0.35, 'kVAr'], ['kVAr3', 0.53, 'kVAr'],
+  ['Total kW', 2.85, 'kW'], ['Total kVA', 3.12, 'kVA'], ['Total kVAr', 1.27, 'kVAr'],
+  ['PF1', 0.92, ''], ['PF2', 0.922, ''], ['PF3', 0.9, ''], ['PF avg', 0.914, ''],
+  ['Frequency', 50.028, 'Hz'], ['Total net kWh', 12.345, 'kWh'], ['Total net kVArh', 3.21, 'kVArh'],
+  ['kW demand', 0.212, 'kW'], ['kVA demand', 0.235, 'kVA'], ['Max kW demand', 2.9, 'kW'], ['Max kVA demand', 3.2, 'kVA']
+];
+let demoUptime = 0;
+$('demoBtn').onclick = () => demoTimer ? stopDemo() : startDemo();
+function startDemo() {
+  if (device && device.gatt.connected) return;
+  setStatus('Demo data', 'wait');
+  $('demoBtn').textContent = 'Stop demo';
+  const tick = () => {
+    demoUptime += 2;
+    let out = `=== RI-D440 (slave 1, S/N DEMO0001) uptime ${demoUptime}s ===\n`;
+    DEMO.forEach(([k, v, u]) => {
+      const j = k.startsWith('PF') ? v + (Math.random() - .5) * .01
+              : k === 'Frequency' ? v + (Math.random() - .5) * .05
+              : v * (1 + (Math.random() - .5) * .04);
+      out += '  ' + k.padEnd(22) + j.toFixed(3).padStart(10) + ' ' + u + '\n';
+    });
+    ingest(out);
+  };
+  tick();
+  demoTimer = setInterval(tick, 2000);
+}
+function stopDemo() {
+  if (!demoTimer) return;
+  clearInterval(demoTimer); demoTimer = null;
+  $('demoBtn').textContent = 'Demo';
+  setStatus('Not connected');
+}
+
+window.addEventListener('resize', queueRender);
+render();
 </script>
 </body>
 </html>
- 
